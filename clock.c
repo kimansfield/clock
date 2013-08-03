@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <p24FJ64GB002.h>
 
+
 #define DELAY 3000
 
 #define DS_low()  LATB &=~0x8000
@@ -35,16 +36,21 @@
 #define COLON 0x0800
 #define CLEAR 0x0000
 
-
-
 unsigned int characters[] = {ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE};
-unsigned int punctuation[] = {DECIMAL, APOSTROPHE, COLON};
-unsigned int index = 0;
+unsigned int punctuation[] = {DECIMAL, APOSTROPHE, COLON, CLEAR};
 
 void setLEDs(unsigned int pattern);
 void selfTest();
 void iterateAllDigits(unsigned int dig1Pattern, unsigned int dig2Pattern, unsigned int dig3Pattern, unsigned int dig4Pattern, unsigned int punctuation);
 void setupTimer();
+void setupClock();
+void blinkPuntuation();
+unsigned int hourTensIndex;
+unsigned int hourOnesIndex;
+unsigned int minuteTensIndex;
+unsigned int minuteOnesIndex;
+unsigned int punctuationIndex;
+unsigned int secondCounter;
 
 /*
  *
@@ -57,6 +63,7 @@ int main(int argc, char** argv) {
     // reset everything
     LATB = 0x0000;
     setupTimer();
+    setupClock();
     TMR1 = 0;
     while (1) {
 
@@ -79,7 +86,7 @@ void iterateAllDigits(unsigned int dig1Pattern, unsigned int dig2Pattern, unsign
         setLEDs(DIG2 | dig2Pattern);
         setLEDs(DIG3 | dig3Pattern);
         setLEDs(DIG4 | dig4Pattern);
-        setLEDs(punctuation);
+        setLEDs(COLON);
     }
 }
 
@@ -116,19 +123,55 @@ void setupTimer() {
 }
 
 void _ISRFAST __attribute__((interrupt, auto_psv)) _T2Interrupt(void) {
-    setLEDs(DIG1 | characters[index]);
-    setLEDs(DIG2 | characters[index]);
-    setLEDs(DIG3 | characters[index]);
-    setLEDs(DIG4 | characters[index]);
-
+    setLEDs(DIG1 | characters[hourTensIndex]);
+    setLEDs(DIG2 | characters[hourOnesIndex]);
+    setLEDs(DIG3 | characters[minuteTensIndex]);
+    setLEDs(DIG4 | characters[minuteOnesIndex]);
+    setLEDs((punctuationIndex == 0 ? DIG2 : 0x00) | punctuation[punctuationIndex]);
     _T2IF = 0;
 }
 
 void _ISRFAST __attribute__((interrupt, auto_psv)) _T4Interrupt(void) {
-    if (index++ >= 10) {
-        index = 0;
-    }
+    blinkPuntuation();
+
+    _RTCPTR = 0x01; // weekday - hours
+    int weekdayhours1 = RTCVAL;
+    hourTensIndex = (weekdayhours1 & 0x00F0) >> 4;
+    hourOnesIndex = weekdayhours1 & 0x000F;
+    _RTCPTR = 0x00; // minutes - seconds
+    int minsec = RTCVAL;
+    int min = (minsec & 0xFF00) >> 8;
+    minuteTensIndex = (min & 0x00F0) >> 4;
+    minuteOnesIndex = min & 0x000F;
+    int sec = minsec & 0x00FF;
     _T4IF = 0;
 }
 
+void blinkPuntuation() {
+    if (RTCVAL == 0x5935) {
+        punctuationIndex = 2;
+    } else {
+        punctuationIndex = 0;
+    }
+    if (secondCounter++ > 32) {
+        punctuationIndex = 3;
+    }
+    if (secondCounter > 64) {
+        secondCounter = 0;
+    }
+}
 
+void setupClock() {
+    __builtin_write_RTCWEN();
+
+    RCFGCALbits.RTCWREN = 1;
+    RCFGCALbits.RTCEN = 0;
+    RCFGCALbits.RTCPTR = 3;
+    RTCVAL = 0x2006;
+    RTCVAL = 0x1100;
+    RTCVAL = 0x0312;
+    RTCVAL = 0x0130;
+    RCFGCALbits.CAL = 0x00;
+    RCFGCALbits.RTCEN = 1;
+    RCFGCALbits.RTCWREN = 0;
+}
