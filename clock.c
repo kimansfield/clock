@@ -143,7 +143,7 @@ void _ISRFAST __attribute__((interrupt, auto_psv)) _T4Interrupt(void) {
     int min = (minsec & 0xFF00) >> 8;
     minuteTensIndex = (min & 0x00F0) >> 4;
     minuteOnesIndex = min & 0x000F;
-    int sec = minsec & 0x00FF;
+//    int sec = minsec & 0x00FF;
     _T4IF = 0;
 }
 
@@ -170,7 +170,7 @@ void setupClock() {
     RTCVAL = 0x2006;
     RTCVAL = 0x1100;
     RTCVAL = 0x0312;
-    RTCVAL = 0x0130;
+    RTCVAL = 0x0230;
     RCFGCALbits.CAL = 0x00;
     RCFGCALbits.RTCEN = 1;
     RCFGCALbits.RTCWREN = 0;
